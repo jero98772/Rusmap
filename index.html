@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Imperial Russia — Historical Atlas | 3D Buildings & Historical Sites</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,800;1,400&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" />
+  <script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
+  <style>
+    :root {
+      --gold: #c9a84c;
+      --gold-light: #e8c96a;
+      --gold-dim: #8a6f2e;
+      --panel-bg: rgba(12, 8, 3, 0.92);
+      --panel-border: rgba(201,168,76,0.6);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #0d0a04; font-family: 'Crimson Pro', Georgia, serif; }
+    #map { position: absolute; inset: 0; background: #1a150e; }
+    #grain {
+      position: fixed; inset: 0; pointer-events: none; z-index: 10;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+      opacity: 0.4;
+    }
+    #header {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+      padding: 18px 32px 14px;
+      background: linear-gradient(180deg, rgba(12,8,3,0.96) 0%, rgba(12,8,3,0) 100%);
+      display: flex; align-items: baseline; gap: 20px;
+      pointer-events: none;
+    }
+    #header h1 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: clamp(1.1rem, 2.4vw, 1.7rem);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      color: var(--gold-light);
+      text-shadow: 0 2px 12px rgba(201,168,76,0.5);
+    }
+    #header .subtitle {
+      font-size: 0.78rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(201,168,76,0.6);
+      font-style: italic;
+    }
+    .header-line { flex: 1; height: 1px; background: linear-gradient(90deg, var(--gold-dim), transparent); }
+    #hint {
+      position: fixed; top: 72px; right: 28px; z-index: 20;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 2px;
+      padding: 10px 14px;
+      backdrop-filter: blur(12px);
+      font-size: 0.68rem;
+      color: rgba(201,168,76,0.7);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    #legend {
+      position: fixed; bottom: 150px; left: 28px;
+      z-index: 20; width: 170px;
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 2px;
+      padding: 16px 16px 14px;
+      backdrop-filter: blur(12px);
+    }
+    #legend h4 { font-size: 0.6rem; letter-spacing: 0.28em; text-transform: uppercase; color: var(--gold-dim); margin-bottom: 12px; }
+    .legend-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .legend-item span { font-size: 0.72rem; color: rgba(245,236,215,0.8); }
+    #timeline {
+      position: fixed; bottom: 36px; left: 50%;
+      transform: translateX(-50%);
+      z-index: 20; width: min(680px, 90vw);
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      border-radius: 2px;
+      padding: 18px 28px 16px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 48px rgba(0,0,0,0.6);
+    }
+    #timeline::before {
+      content: '';
+      position: absolute; top: -1px; left: 20px; right: 20px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    }
+    #tl-label {
+      font-size: 0.64rem; letter-spacing: 0.3em; text-transform: uppercase;
+      color: var(--gold-dim); margin-bottom: 10px;
+      text-align: center;
+    }
+    #tl-era-name {
+      font-family: 'Playfair Display', serif; font-size: 0.95rem;
+      color: var(--gold-light); text-align: center;
+      margin-bottom: 12px;
+      transition: opacity 0.15s ease;
+    }
+    #timeline-slider {
+      width: 100%; appearance: none;
+      height: 2px;
+      background: linear-gradient(90deg, #8b1a1a, var(--gold-dim));
+      outline: none; cursor: pointer;
+    }
+    #timeline-slider::-webkit-slider-thumb {
+      appearance: none; width: 14px; height: 14px;
+      border-radius: 50%; background: var(--gold);
+      border: 2px solid #1a1209; cursor: pointer;
+      box-shadow: 0 0 8px rgba(201,168,76,0.6);
+    }
+    .tl-ticks { display: flex; justify-content: space-between; margin-top: 8px; }
+    .tl-ticks span { font-size: 0.6rem; color: rgba(201,168,76,0.45); }
+    .maplibregl-popup { font-family: 'Crimson Pro', serif; }
+    .maplibregl-popup-content {
+      background: var(--panel-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: 4px;
+      color: #f5ecd7;
+      padding: 14px 18px;
+      min-width: 220px;
+    }
+    .maplibregl-popup-content h3 {
+      font-family: 'Playfair Display', serif;
+      color: var(--gold-light);
+      margin-bottom: 6px;
+      font-size: 1.1rem;
+    }
+    .maplibregl-popup-content p { font-size: 0.8rem; margin: 8px 0; line-height: 1.4; }
+    .maplibregl-popup-content a {
+      color: var(--gold); text-decoration: none;
+      border-bottom: 1px solid rgba(201,168,76,0.4);
+      font-size: 0.75rem; display: inline-block; margin-top: 5px;
+    }
+    .maplibregl-popup-content a:hover { color: var(--gold-light); }
+    .maplibregl-popup-close-button { color: var(--gold-dim); font-size: 18px; }
+    .maplibregl-ctrl-group { background: var(--panel-bg) !important; border: 1px solid var(--panel-border) !important; }
+    .maplibregl-ctrl-group button { color: var(--gold) !important; }
+    #loader {
+      position: fixed; inset: 0; z-index: 100;
+      background: #0d0a04;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      transition: opacity 0.6s ease;
+    }
+    #loader.hidden { opacity: 0; pointer-events: none; visibility: hidden; }
+    .loader-title {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.4rem, 4vw, 2.4rem);
+      color: var(--gold-light);
+      letter-spacing: 0.12em;
+    }
+    .loader-sub { font-size: 0.7rem; letter-spacing: 0.4em; text-transform: uppercase; color: var(--gold-dim); }
+    .loader-line {
+      width: 180px; height: 1px;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+  </style>
+</head>
+<body>
+<div id="loader">
+  <div class="loader-title">Imperial Russia</div>
+  <div class="loader-line"></div>
+  <div class="loader-sub">Historical Atlas · 862–1991</div>
+</div>
+<div id="grain"></div>
+<div id="header">
+  <h1>IMPERIAL RUSSIA</h1>
+  <div class="subtitle">Historical Atlas · 862–1991</div>
+  <div class="header-line"></div>
+</div>
+<div id="hint">Zoom to city level for 3D buildings</div>
+<div id="map"></div>
+<div id="legend">
+  <h4>Historical Sites</h4>
+  <div class="legend-item"><div class="legend-dot" style="background:#c9a84c;box-shadow:0 0 6px #c9a84c;"></div><span>Capital City</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#dc143c;box-shadow:0 0 6px #dc143c;"></div><span>Battle Site</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#4169e1;box-shadow:0 0 6px #4169e1;"></div><span>Monument / Fortress</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#32cd32;box-shadow:0 0 6px #32cd32;"></div><span>Revolution Site</span></div>
+  <div class="legend-item"><div class="legend-dot" style="background:#9370db;box-shadow:0 0 6px #9370db;"></div><span>Imperial Palace</span></div>
+</div>
+<div id="timeline">
+  <div id="tl-label">HISTORICAL ERA — FILTER SITES</div>
+  <div id="tl-era-name">Kievan Rus' · 862–1240</div>
+  <input type="range" id="timeline-slider" min="0" max="5" step="1" value="0" />
+  <div class="tl-ticks"><span>862</span><span>1240</span><span>1547</span><span>1682</span><span>1812</span><span>1917</span></div>
+</div>
+<script>
+const HISTORICAL_SITES = [
+  { lon: 37.6173, lat: 55.7558, name: "Moscow", era: "Capital City", type: "capital", eraIndex: [0,1,2,3,4,5], color: "#c9a84c", description: "Founded c. 1147, Moscow grew into the heart of the Russian Empire. The Kremlin and Red Square stand as symbols of Russian power.", link: "https://en.wikipedia.org/wiki/History_of_Moscow" },
+  { lon: 30.3158, lat: 59.9386, name: "Saint Petersburg", era: "Imperial Capital", type: "capital", eraIndex: [3,4,5], color: "#c9a84c", description: "Founded in 1703 by Peter the Great as Russia's 'window to Europe,' St. Petersburg was the imperial capital for two centuries.", link: "https://en.wikipedia.org/wiki/History_of_Saint_Petersburg" },
+  { lon: 44.5018, lat: 48.7194, name: "Battle of Stalingrad", era: "Battle Site", type: "battle", eraIndex: [5], color: "#dc143c", description: "1942–43: One of the bloodiest battles in history. Soviet victory marked the turning point of WWII.", link: "https://en.wikipedia.org/wiki/Battle_of_Stalingrad" },
+  { lon: 38.7694, lat: 55.1486, name: "Battle of Borodino", era: "Battle Site", type: "battle", eraIndex: [4], color: "#dc143c", description: "7 September 1812: The bloodiest single day of the Napoleonic Wars, leading to the French retreat from Moscow.", link: "https://en.wikipedia.org/wiki/Battle_of_Borodino" },
+  { lon: 30.5241, lat: 50.4501, name: "Kyiv — Rus' Capital", era: "Kievan Rus'", type: "capital", eraIndex: [0], color: "#c9a84c", description: "Kyiv was the magnificent capital of Kievan Rus', the medieval state from which Russia, Ukraine, and Belarus trace their origins.", link: "https://en.wikipedia.org/wiki/Kyiv_Rus" },
+  { lon: 27.5615, lat: 54.0835, name: "Battle of Grunwald", era: "Battle Site", type: "battle", eraIndex: [1], color: "#dc143c", description: "1410: Polish–Lithuanian–Rus' alliance crushed the Teutonic Knights, reshaping Eastern Europe's power balance.", link: "https://en.wikipedia.org/wiki/Battle_of_Grunwald" },
+  { lon: 60.6122, lat: 56.8519, name: "Yekaterinburg", era: "Revolution Site", type: "revolution", eraIndex: [5], color: "#32cd32", description: "17 July 1918: Tsar Nicholas II and the Romanov family were executed here by Bolshevik forces.", link: "https://en.wikipedia.org/wiki/Shooting_of_the_Romanov_family" },
+  { lon: 39.7139, lat: 47.2135, name: "Azov — Gateway to the South", era: "Imperial Expansion", type: "monument", eraIndex: [3], color: "#4169e1", description: "The fortress of Azov was captured by Peter the Great in 1696, Russia's first major step toward a warm-water port.", link: "https://en.wikipedia.org/wiki/Siege_of_Azov_(1696)" },
+  { lon: 29.9157, lat: 59.8537, name: "Peterhof Palace", era: "Imperial Palace", type: "empire", eraIndex: [3,4], color: "#9370db", description: "Peter the Great's grand palace, often called the 'Russian Versailles', famous for its cascading fountains.", link: "https://en.wikipedia.org/wiki/Peterhof_Palace" },
+  { lon: 37.5967, lat: 55.6925, name: "Novodevichy Convent", era: "Monument", type: "monument", eraIndex: [2,3], color: "#4169e1", description: "Founded 1524, this UNESCO site served as a prison for royal women and witnessed dynastic intrigues.", link: "https://en.wikipedia.org/wiki/Novodevichy_Convent" },
+  { lon: 35.9115, lat: 55.0293, name: "Battle of Kulikovo", era: "Battle Site", type: "battle", eraIndex: [1], color: "#dc143c", description: "1380: First major Russian victory over the Golden Horde, pivotal moment in the rise of Muscovite Russia.", link: "https://en.wikipedia.org/wiki/Battle_of_Kulikovo" },
+  { lon: 56.3269, lat: 58.0105, name: "Perm — Ural Outpost", era: "Imperial Expansion", type: "monument", eraIndex: [2,3,4], color: "#4169e1", description: "Gateway to Siberian expansion; the Stroganov family's salt empire funded the conquest of Siberia.", link: "https://en.wikipedia.org/wiki/Perm" },
+  { lon: 37.6155, lat: 55.7520, name: "The Kremlin", era: "Capital Fortress", type: "monument", eraIndex: [0,1,2,3,4,5], color: "#4169e1", description: "The Moscow Kremlin has been the seat of Russian power for nearly nine centuries.", link: "https://en.wikipedia.org/wiki/Moscow_Kremlin" },
+  { lon: 30.3009, lat: 59.9564, name: "Peter & Paul Fortress", era: "Monument", type: "monument", eraIndex: [3,4,5], color: "#4169e1", description: "Founded by Peter the Great in 1703, it became the burial place of Russian Tsars and a notorious political prison.", link: "https://en.wikipedia.org/wiki/Peter_and_Paul_Fortress" },
+  { lon: 28.8575, lat: 61.0541, name: "Battle of Poltava", era: "Battle Site", type: "battle", eraIndex: [3], color: "#dc143c", description: "1709: Peter the Great's decisive victory over Sweden established Russia as the dominant power in northern Europe.", link: "https://en.wikipedia.org/wiki/Battle_of_Poltava" },
+  { lon: 37.6156, lat: 55.7514, name: "Red Square", era: "Revolution Site", type: "revolution", eraIndex: [4,5], color: "#32cd32", description: "Moscow's ceremonial heart; witnessed Ivan the Terrible's executions and Soviet military parades.", link: "https://en.wikipedia.org/wiki/Red_Square" }
+];
+
+const ERAS = [
+  { label: "Kievan Rus' — Founding of Russia", years: "862–1240" },
+  { label: "Mongol Era & Rise of Moscow", years: "1240–1547" },
+  { label: "Tsardom of Russia", years: "1547–1682" },
+  { label: "Imperial Russia — Peter the Great", years: "1682–1812" },
+  { label: "Napoleon & the 19th Century", years: "1812–1917" },
+  { label: "Revolution & Soviet Union", years: "1917–1991" }
+];
+
+// FIX 1: Use OpenFreeMap style (same provider as the building source)
+// FIX 2: Use canvasContextAttributes instead of antialias
+const map = new maplibregl.Map({
+  style: 'https://tiles.openfreemap.org/styles/bright',
+  center: [55.0, 58.0],
+  zoom: 5.2,
+  pitch: 48,
+  bearing: -12,
+  container: 'map',
+  canvasContextAttributes: { antialias: true }
+});
+
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+let currentEra = 0;
+const circleLayerId = 'historical-sites-circle';
+let currentPopup = null;
+
+function addScatterplotLayer(eraIndex) {
+  const filteredSites = HISTORICAL_SITES.filter(s => s.eraIndex.includes(eraIndex));
+  const geojson = {
+    type: 'FeatureCollection',
+    features: filteredSites.map(site => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [site.lon, site.lat] },
+      properties: {
+        name: site.name,
+        era: site.era,
+        description: site.description,
+        link: site.link,
+        color: site.color,
+        type: site.type
+      }
+    }))
+  };
+
+  if (map.getLayer(circleLayerId)) map.removeLayer(circleLayerId);
+  if (map.getSource('historical-points')) map.removeSource('historical-points');
+
+  map.addSource('historical-points', { type: 'geojson', data: geojson });
+  map.addLayer({
+    id: circleLayerId,
+    type: 'circle',
+    source: 'historical-points',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 10, 10, 16, 15, 24],
+      'circle-color': ['get', 'color'],
+      'circle-opacity': 0.95,
+      'circle-stroke-width': 2.5,
+      'circle-stroke-color': '#ffd700',
+      'circle-stroke-opacity': 0.9,
+      'circle-blur': 0.05
+    }
+  });
+
+  map.off('click', circleLayerId, onCircleClick);
+  map.on('click', circleLayerId, onCircleClick);
+  map.on('mouseenter', circleLayerId, () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', circleLayerId, () => map.getCanvas().style.cursor = '');
+}
+
+function onCircleClick(e) {
+  if (!e.features || !e.features.length) return;
+  const props = e.features[0].properties;
+  const coords = e.features[0].geometry.coordinates.slice();
+  if (currentPopup) currentPopup.remove();
+
+  map.flyTo({
+    center: coords,
+    zoom: Math.max(map.getZoom(), 12),
+    pitch: 55,
+    bearing: map.getBearing(),
+    duration: 1800,
+    essential: true
+  });
+
+  map.once('moveend', () => {
+    currentPopup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false })
+      .setLngLat(coords)
+      .setHTML(`
+        <h3>${props.name}</h3>
+        <p><em>${props.era}</em></p>
+        <p>${props.description.substring(0, 120)}${props.description.length > 120 ? '…' : ''}</p>
+        <a href="${props.link}" target="_blank" rel="noopener noreferrer">📖 Read full history →</a>
+      `)
+      .addTo(map);
+  });
+}
+
+function filterSitesByEra(eraIndex) {
+  currentEra = eraIndex;
+  addScatterplotLayer(eraIndex);
+}
+
+map.on('load', () => {
+  document.getElementById('loader').classList.add('hidden');
+
+  // Find first symbol layer to insert buildings beneath labels
+  const layers = map.getStyle().layers;
+  let labelLayerId;
+  for (let i = 0; i < layers.length; i++) {
+    if (layers[i].type === 'symbol' && layers[i].layout && layers[i].layout['text-field']) {
+      labelLayerId = layers[i].id;
+      break;
+    }
+  }
+
+  // FIX: Add the OpenFreeMap planet vector source (same as working example)
+  map.addSource('openfreemap', {
+    url: 'https://tiles.openfreemap.org/planet',
+    type: 'vector'
+  });
+
+  // FIX: Add 3D buildings layer exactly as in the working example
+  map.addLayer(
+    {
+      id: '3d-buildings',
+      source: 'openfreemap',
+      'source-layer': 'building',
+      type: 'fill-extrusion',
+      minzoom: 15,
+      filter: ['!=', ['get', 'hide_3d'], true],
+      paint: {
+        'fill-extrusion-color': [
+          'interpolate', ['linear'], ['get', 'render_height'],
+          0, 'lightgray',
+          200, 'royalblue',
+          400, 'lightblue'
+        ],
+        'fill-extrusion-height': [
+          'interpolate', ['linear'], ['zoom'],
+          15, 0,
+          16, ['get', 'render_height']
+        ],
+        'fill-extrusion-base': [
+          'case',
+          ['>=', ['get', 'zoom'], 16],
+          ['get', 'render_min_height'],
+          0
+        ]
+      }
+    },
+    labelLayerId
+  );
+
+  addScatterplotLayer(0);
+
+  setTimeout(() => {
+    map.flyTo({ center: [55.0, 58.0], zoom: 4.8, pitch: 52, bearing: -12, duration: 3000 });
+  }, 500);
+
+
+});
+
+const slider = document.getElementById('timeline-slider');
+const eraNameSpan = document.getElementById('tl-era-name');
+slider.addEventListener('input', (e) => {
+  const v = parseInt(e.target.value);
+  eraNameSpan.style.opacity = '0';
+  setTimeout(() => {
+    eraNameSpan.textContent = `${ERAS[v].label} · ${ERAS[v].years}`;
+    eraNameSpan.style.opacity = '1';
+  }, 150);
+  filterSitesByEra(v);
+});
+
+setTimeout(() => {
+  const loaderEl = document.getElementById('loader');
+  if (loaderEl && !loaderEl.classList.contains('hidden')) loaderEl.classList.add('hidden');
+}, 5000);
+</script>
+</body>
+</html>
