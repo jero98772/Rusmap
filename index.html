@@ -290,12 +290,13 @@ function onCircleClick(e) {
 
   map.flyTo({
     center: coords,
-    zoom: Math.max(map.getZoom(), 12),
+    zoom: Math.max(map.getZoom(), 16),
     pitch: 55,
     bearing: map.getBearing(),
     duration: 1800,
     essential: true
   });
+
 
   map.once('moveend', () => {
     currentPopup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false })
@@ -369,7 +370,7 @@ map.on('load', () => {
   addScatterplotLayer(0);
 
   setTimeout(() => {
-    map.flyTo({ center: [55.0, 58.0], zoom: 4.8, pitch: 52, bearing: -12, duration: 3000 });
+    map.flyTo({ center: [35.0, 55.0], zoom: 4.8, pitch: 52, bearing: -12, duration: 3000 });
   }, 500);
 
 
